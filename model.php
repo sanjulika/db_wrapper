@@ -35,6 +35,10 @@ Class Model extends DbWrapper {
             $this->obj->orderBy($order[0], $order[1]);
         }
 
+        if (isset($options['group']) && !empty($options['group'])) {
+            $this->obj->groupBy($options['group']);
+        }
+
         return $this->obj->get();
     }
 

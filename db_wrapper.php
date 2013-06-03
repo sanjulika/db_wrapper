@@ -43,13 +43,16 @@ Class DbWrapper {
     }
 
     public function from($tableNames) {
+        if (is_array($tableNames)) {
+            $tableNames = implode($tableNames, ',');
+        }
         $this->str .= "FROM $tableNames ";
         return $this;
     }
 
     public function where($conditions = array()) {
-//        $condtn = $this->getWhere($conditions);
-        $this->str .= "WHERE $conditions ";
+        $condtn = $this->getWhere($conditions);
+        $this->str .= "WHERE $condtn ";
         return $this;
     }
 
@@ -66,21 +69,72 @@ Class DbWrapper {
         return $this;
     }
 
+    public function groupBy($fieldName) { //$param = enum (DESC , ASC)
+        $this->str .= "GROUP BY $fieldName";
+        return $this;
+    }
+
     public function get() {
         $this->str = 'SELECT '.$this->str;
         print_r($this->str);
-        return $this->query($this->str);
+        $query = $this->str;
+        $this->str = '';
+        return $this->query($query);
     }
 
     public function query($query) {
-        echo 'running query</br><pre>';
+        echo '</br>running query</br><pre>';
         $data = $this->db->query($query);
         return $data->fetchAll();
 
     }
 
     public function getWhere($conditions = array()) {
-        print_r($conditions);
+
+        if (is_array($conditions)) {
+            $newCond = '';
+            end($conditions);
+            $last_key = key($conditions);
+            foreach ($conditions as $key => $value) {
+//                if (gettype($value) == 'string') {
+//                    $value = "'$value'";
+//
+//                }
+                if ($key == 'OR') {
+                    end($conditions[$key]);
+                    $last_k = key($conditions[$key]);
+                    foreach ($conditions[$key] as $k => $v) {
+                        if (gettype($v) == 'string') {
+                            $v = "'$v'";
+
+                        }
+                        $array = explode(' ', $k);
+                        if (isset($array[1]) && !empty($array[1])) {
+                            $newCond .= "$k $v";
+                        } else {
+                            $newCond .= "$k = $v";
+                        }
+                        if ($k != $last_k) {
+                            $newCond .= ' OR ';
+                        } else if (($k == $last_k) && (count($conditions) > 1) && ($key != $last_key)) {
+                            $newCond .= ' AND ';
+                        }
+                    }
+                } else {
+                    $array = explode(' ', $key);
+                    if (isset($array[1]) && !empty($array[1])) {
+                        $newCond .= "$key $value";
+                    } else {
+                        $newCond .= "$key = $value";
+                    }
+                    if ($key != $last_key) {
+                        $newCond .= ' AND ';
+                    }
+                }
+
+            }
+        }
+        return $newCond;
 
     }
 
@@ -196,41 +250,75 @@ Class DbWrapper {
 
 }
 
-//$obj = DbWrapper::getInstance();
-//print_r($obj->select('city')->select(array('id', 'fname'))->select('lname')->from('users')->where('id=501')->get());
-//die;
-//$test = $obj->query('SHOW INDEX FROM users WHERE Key_name = "PRIMARY"');
-//print_r($test);
-//die;
-//$test = $obj->query('select * from users order by `fname` desc limit 5');
-//foreach ($test as $key => $val) {
-//    echo $val['id'].'==>>'.$val['organisation_id'].'==>>'.$val['fname'].'==>>'.$val['lname'].'==>>'.$val['city'];
-//    echo '</br>';
-//    print_r(implode(array_keys($val), ','));
-//    echo '</br>';
-//    print_r(implode(array_values($val), ','));
-//}
-//echo "<pre>";
-//$saveAllData = array(
-//    array(
-//        'organisation_id' => '20',
-//        'fname' => 'abc',
-//        'lname' => 'xyz',
-//        'city' => 'mumbai'
-//    ),
-//    array(
-//        'organisation_id' => '21',
-//        'fname' => 'abcddd',
-//        'lname' => 'xyzdddd',
-//        'city' => 'pune'
-//    ),
-//);
+$obj = DbWrapper::getInstance();
+
+echo '<pre>';
+
+echo '<br/>list all organisation<br/>';
+//print_r($obj->select()->from('organizations')->get());
+
+
+echo '<br/>List 10 organization whose id is greater than 10<br/>';
+
+print_r($obj->select()->from('organizations')->where(array('id >' => 10))->limit('5')->get());
+
+echo '<br/>List Organization whose id is greater than 10 and less than equal to 50<br/>';
+
+print_r($obj->select()->from('organizations')->where(array('id >' => 10, 'id <=' => 50))->get());
+
+echo '<br/> List all organization who has been created after 2013-02-10 00:00:00<br/>';
+
+print_r($obj->select()->from('organizations')->where(array('created_on >' => '"2013-02-10 00:00:00"'))->get());
+
+echo '<br/>List all organizations who has id between 10 to 50 and its orders should be descending by name<br/>';
+
+print_r($obj->select()->from('organizations')->where(array('id >=' => 10, 'id <=' => 50))->orderBy('name', 'DESC')->get());
+
+
+echo '<br/>Display informations about organization whose id is 70<br/>';
+
+print_r($obj->select()->from('organizations')->where(array('id' => 70))->get());
+
+echo '<br/>display informations about organization whose name is "Org Name 30"<br/>';
+
+print_r($obj->select()->from('organizations')->where(array('name' => '"Org Name 30"'))->get());
+
+
+echo '<br/>display all the users of organization_id 30<br/>';
+
+print_r($obj->select()->from('users')->where(array('organisation_id' => 30))->get());
+
+
+echo '<br/>return a count of users per organization with organization name<br/>';
+
+print_r($obj->select('COUNT(U.id)')->select('name')->from(array('users as U', 'organizations as O'))->where(array('U.organisation_id' => 'O.id'))->groupby('organisation_id')->get());
+
+echo '<br/>update users table fname = "abc" and lname = "xyz" of user whose id is 20<br/>';
+//
 //$saveData = array(
-//    'organisation_id' => 99,
+//    'id' => 20,
 //    'fname' => 'abc',
 //    'lname' => 'xyz',
-//    'city' => 'mumbai'
 //);
-//$obj->save('users', $saveData);
+//$res->save('users', $saveData);
+//
+print_r($obj->save('users', array('fname' => "abc", 'lname' => "xyz"), array('id' => '20')));
+//
+echo '<br/>Delete all users who lives in city "City7"<br/>';
+//
+////print_r($res->delete('users', array('id' => '572')));
+print_r($obj->delete('users', array('city' => 'City7')));
 
-//print_r($obj->query('select * from users WHERE `organisation_id`=200'));
+
+
+
+
+
+
+
+
+
+
+
+
+
